@@ -211,10 +211,17 @@ an Error the SDK writes.
   no Reopen can meet the Deadline.
 - Every send has a Deadline on its DDP response, defaulting to `config.timeout`,
   starting after the write. The only other public surface is an optional
-  per-send bound. A send issued while the Socket is not Transport open first
-  waits out the wait on `open`, up to `config.reopen * 2`, and only then its own
-  bound. The handshake is the one send this does not describe, because the
-  attempt's absolute Deadline covers it from before the Transport existed.
+  per-send bound. Whether `send` waits for the connection to open is decided on
+  the Transport's own state. A send on a Transport open Socket does not wait: it
+  is written at once. A send on a Transport that is still connecting waits for
+  that same connection to open, bounded by `waitForOpen` — up to
+  `config.reopen * 2` — and only then its own bound. A send on a Transport that
+  is closing or closed does not wait: that connection will not open, so the wait
+  is abandoned at the guard with
+  `'[ddp] connection closed before the response arrived'`. A quiet connection —
+  Transport open, nobody answering — is not a case of this wait; the Liveness
+  chain owns that. The handshake is the one send this does not describe, because
+  the attempt's absolute Deadline covers it from before the Transport existed.
 - `ping` names its own bound and names `config.ping`. If that Deadline wins,
   `ping` reopens, so a pong that does not arrive causes the recovery it always
   had to cause. Bounding the pong by the ping interval keeps an app that is
@@ -253,8 +260,10 @@ an Error the SDK writes.
     replacement abandoned.
   - `'[ddp] connection closed before the response arrived'`, for a DDP wait
     ended by the connection it was written on closing, whether the consuming app
-    asked for that close or the peer dropped it. A close is not a Reopen, and a
-    caller retrying on the wrong one retries into a Socket that is gone.
+    asked for that close or the peer dropped it, and for a send that finds the
+    Transport already closing or closed and so never writes. A close is not a
+    Reopen, and a caller retrying on the wrong one retries into a Socket that is
+    gone.
   - `'[ddp] connection replaced before the message was written'`, for a send
     that waited for the connection to open and found another one in its place.
     A DDP session belongs to its connection: a Method call moved across would go

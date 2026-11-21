@@ -5,6 +5,8 @@ import { createSilentLogger } from '../../../test/createSilentLogger'
 import { createSocket, PING_INTERVAL_OUTSIDE_TEST_WINDOW, REOPEN_DELAY } from '../../../test/createSocket'
 import {
   CLOSED,
+  CLOSING,
+  CONNECTING,
   FakeWebSocket,
   OPEN,
   driveToHandshake,
@@ -184,16 +186,28 @@ describe('Socket.send', () => {
   })
 
   describe('sending while the connection is not open', () => {
-    it('rejects on the deadline without writing the message, rather than waiting on open forever', async () => {
-      transport.readyState = CLOSED
+    const CLOSED_MESSAGE = '[ddp] connection closed before the response arrived'
 
-      const rejected = expect(socket.send({ msg: 'method', method: 'login', params: [] }))
-        .rejects.toThrow('[ddp] timed out waiting for the connection to open')
+    const expectAbandonedWithoutWrite = async (readyState: number) => {
+      transport.readyState = readyState
+      const sentBefore = transport.sent.length
+      const timersBefore = jest.getTimerCount()
 
-      await jest.advanceTimersByTimeAsync(10 * 60 * 1000)
+      const sending = socket.send({ msg: 'method', method: 'login', params: [] })
 
-      await rejected
-      expect(transport.sent).toHaveLength(1)
+      await expect(sending).rejects.toBeInstanceOf(Error)
+      await expect(sending).rejects.not.toBeInstanceOf(DDPError)
+      await expect(sending).rejects.toThrow(CLOSED_MESSAGE)
+      expect(transport.sent).toHaveLength(sentBefore)
+      expect(jest.getTimerCount()).toBe(timersBefore)
+    }
+
+    it('abandons a send on a closed transport at once, rather than waiting for open', async () => {
+      await expectAbandonedWithoutWrite(CLOSED)
+    })
+
+    it('abandons a send on a closing transport at once, rather than waiting for open', async () => {
+      await expectAbandonedWithoutWrite(CLOSING)
     })
 
     it('sends once the connection opens inside the deadline', async () => {
@@ -386,11 +400,12 @@ describe('Socket.send with several listeners on one event', () => {
     })
 
     it('rejects a send whose connection went away as its wait on open ended', async () => {
-      transport.readyState = CLOSED
+      transport.readyState = CONNECTING
 
       const sending = socket.send({ msg: 'method', method: 'getUsersOfRoom', params: [] })
       const rejection = expect(sending).rejects.toThrow(CLOSED_MESSAGE)
 
+      transport.readyState = CLOSED
       socket.emit('open')
       await jest.advanceTimersByTimeAsync(0)
 
@@ -451,7 +466,7 @@ describe('Socket.send with several listeners on one event', () => {
   })
 
   it('rejects a send waiting on open when a forced reopen replaced the connection, and writes nothing on the replacement', async () => {
-    transport.readyState = CLOSED
+    transport.readyState = CONNECTING
     const sending = socket.send({ msg: 'method', method: 'getUsersOfRoom', params: [] })
     await jest.advanceTimersByTimeAsync(0)
 
@@ -469,7 +484,7 @@ describe('Socket.send with several listeners on one event', () => {
   })
 
   it('waits for open up to twice the reopen delay, and no longer', async () => {
-    transport.readyState = CLOSED
+    transport.readyState = CONNECTING
 
     const sending = socket.send({ msg: 'method', method: 'getUsersOfRoom', params: [] })
     const settled = jest.fn()

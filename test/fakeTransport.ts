@@ -5,6 +5,7 @@ import type { ISocketMessageCallback } from '../interfaces'
 
 export const CONNECTING = 0
 export const OPEN = 1
+export const CLOSING = 2
 export const CLOSED = 3
 /** The code the SDK closes a transport with when it asked for the close. */
 export const INTENTIONAL_CLOSE = 4000

@@ -22,6 +22,7 @@ export type { Transport }
 /** The code the SDK closes a Transport with when it asked for the close. */
 export const intentionalCloseCode = 4000
 export const transportOpenState = 1
+export const transportClosingState = 2
 export const transportClosedState = 3
 
 export const closeTransportIntentionally = (transport: Transport, logger: ILogger): boolean => {

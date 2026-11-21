@@ -41,6 +41,7 @@ import {
   intentionalCloseCode,
   Transport,
   transportClosedState,
+  transportClosingState,
   transportOpenState
 } from './connection'
 import { DDPSubscriptions } from './ddpSubscriptions'
@@ -382,6 +383,12 @@ export class Socket extends SDKEventEmitter {
     // is never written to a successor: the DDP session, and any Login on it, is
     // the old connection's.
     const connection = this.connection
+    if (
+      connection.readyState === transportClosingState ||
+      connection.readyState === transportClosedState
+    ) {
+      throw AbandonedWait.responseClosed()
+    }
     if (!this.transportOpen) {
       await this.waitForOpen()
       if (this.connection !== connection) throw AbandonedWait.connectionReplacedBeforeWrite()

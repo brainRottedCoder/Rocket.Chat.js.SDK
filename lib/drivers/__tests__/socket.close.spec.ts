@@ -239,7 +239,7 @@ describe('Socket close', () => {
       })
 
       it('refuses a send that was still waiting for the transport to open', async () => {
-        transport.readyState = CLOSED
+        transport.readyState = CONNECTING
         const sentBefore = transport.sent.length
         const sending = socket.send({ msg: 'method', method: 'getUsersOfRoom', params: [] })
         await jest.advanceTimersByTimeAsync(0)
@@ -249,6 +249,7 @@ describe('Socket close', () => {
         await expect(sending).rejects.toThrow('[ddp] connection closed before the response arrived')
         expect(transport.sent).toHaveLength(sentBefore)
 
+        await jest.advanceTimersByTimeAsync(CLOSE_DEADLINE)
         await closing
       })
     })

@@ -356,13 +356,10 @@ describe('Socket subscription bookkeeping', () => {
       expect(socket.subscriptions).toEqual({})
     })
 
-    it('holds nothing when the send expired on an attached transport', async () => {
+    it('holds nothing when the send is abandoned on a closed attached transport', async () => {
       transport.readyState = CLOSED
 
-      const subscribing = socket.subscribe('stream-room-messages', ['GENERAL'])
-      await jest.advanceTimersByTimeAsync(socket.config.reopen * 2 + 1)
-
-      await expect(subscribing).resolves.toBeUndefined()
+      await expect(socket.subscribe('stream-room-messages', ['GENERAL'])).resolves.toBeUndefined()
       expect(socket.subscriptions).toEqual({})
     })
   })

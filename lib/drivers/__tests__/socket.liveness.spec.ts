@@ -226,12 +226,13 @@ describe('Socket liveness', () => {
       await impatient.close()
     })
 
-    it('starts the pong wait only once the ping is written, not when it fires on a dropped socket', async () => {
+    it('starts no pong wait and no reopen when ping fires on a closed transport', async () => {
       transport.readyState = CLOSED
 
       await jest.advanceTimersToNextTimerAsync()
 
       expect(transport.sent).toHaveLength(1)
+      expect(hasScheduledReopen(socket)).toBe(false)
 
       await jest.advanceTimersByTimeAsync(PING_INTERVAL)
 
@@ -242,13 +243,8 @@ describe('Socket liveness', () => {
       socket.emit('open')
       await jest.advanceTimersByTimeAsync(0)
 
-      expect(transport.lastSent()).toEqual({ msg: 'ping' })
-
-      await jest.advanceTimersByTimeAsync(PING_INTERVAL - 1)
+      expect(transport.sent).toHaveLength(1)
       expect(hasScheduledReopen(socket)).toBe(false)
-
-      await jest.advanceTimersByTimeAsync(1)
-      expect(hasScheduledReopen(socket)).toBe(true)
     })
 
     it('reconnects when one pong is withheld', async () => {
